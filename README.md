@@ -1,16 +1,57 @@
-# React + Vite
+# AgentSmith // Retro Telemetry Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A highly customizable, drag-and-drop web application for creating and exporting animated SVG telemetry graphs with a retro sci-fi terminal aesthetic.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Retro Aesthetic**: CRT scanlines, flicker effects, and neon glow.
+- **Drag-and-Drop Layout**: Built with `react-grid-layout` for flexible dashboard design.
+- **Animated SVG Widgets**:
+  - Pulse Monitor (Waveforms)
+  - Signal Equalizer (Bar Charts)
+  - Core Radar (Circular Gauges)
+  - System Log (Scrolling Terminals)
+- **Export System**: Generate standalone HTML/CSS/JS snippets to use in other projects.
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React 19
+- Vite
+- Tailwind CSS
+- Lucide React (Icons)
+- React Grid Layout
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Prerequisites
+- Node.js (v22 recommended)
+- npm
+
+### Installation
+1. Clone the repository.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+## Deployment to GitHub Pages
+
+This project is configured for easy deployment to GitHub Pages.
+
+### Automatic Deployment (GitHub Actions)
+The included GitHub Actions workflow (`.github/workflows/deploy.yml`) will automatically build and deploy the dashboard whenever you push to the `main` branch.
+
+### Manual Deployment
+1. Build the project:
+   ```bash
+   npm run build
+   ```
+2. The production-ready files will be in the `dist/` directory.
+3. You can serve this directory using any static web server (e.g., `npx serve dist`).
+
+## License
+MIT
