@@ -66,10 +66,18 @@ canvas {
     });
 
     const widgetClasses = `
+const COMMON_DEFAULTS = {
+    glowIntensity: 10,
+    visualDensity: 'normal',
+    scanlineEffect: 'OFF',
+    glitchEffect: 'OFF',
+    noiseEffect: 'OFF'
+};
+
 class BaseWidget {
     constructor(container, settings) {
         this.container = container;
-        this.settings = settings;
+        this.settings = { ...COMMON_DEFAULTS, ...settings };
         this.canvas = document.createElement('canvas');
         this.ctx = this.canvas.getContext('2d');
         this.container.appendChild(this.canvas);
@@ -83,6 +91,42 @@ class BaseWidget {
         this.canvas.height = rect.height;
     }
     update(settings) { this.settings = { ...this.settings, ...settings }; }
+    applyEffects(ctx, canvas, settings) {
+        if (settings.noiseEffect === 'ON') {
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i+3] > 0) {
+                    const noise = (Math.random() - 0.5) * 20;
+                    data[i] = Math.max(0, Math.min(255, data[i] + noise));
+                    data[i+1] = Math.max(0, Math.min(255, data[i+1] + noise));
+                    data[i+2] = Math.max(0, Math.min(255, data[i+2] + noise));
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+        }
+        if (settings.glitchEffect === 'ON' && Math.random() > 0.98) {
+            const sliceY = Math.random() * canvas.height;
+            const sliceH = 5 + Math.random() * 15;
+            const offset = (Math.random() - 0.5) * 20;
+            const imageData = ctx.getImageData(0, sliceY, canvas.width, sliceH);
+            ctx.putImageData(imageData, offset, sliceY);
+        }
+        if (settings.scanlineEffect === 'ON') {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            const step = settings.visualDensity === 'dense' ? 2 : 4;
+            for (let y = 0; y < canvas.height; y += step) {
+                ctx.fillRect(0, y, canvas.width, 1);
+            }
+        }
+    }
+    drawGlow(ctx, color, intensity = 10) {
+        ctx.shadowBlur = intensity;
+        ctx.shadowColor = color;
+    }
+    clearGlow(ctx) {
+        ctx.shadowBlur = 0;
+    }
     hexToRgba(hex, alpha = 1) {
         const r = parseInt(hex.slice(1, 3), 16);
         const g = parseInt(hex.slice(3, 5), 16);

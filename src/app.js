@@ -202,7 +202,10 @@ class TelemetryForge {
 
         container.innerHTML = `
             <div class="widget-header">
-                <span class="widget-title">${widgetData.settings.title || config.name}</span>
+                <div class="header-main">
+                    <span class="live-indicator">LIVE</span>
+                    <span class="widget-title">${widgetData.settings.title || config.name}</span>
+                </div>
                 <div class="widget-controls">
                     <button class="widget-control-btn move-up-btn" title="Move Up"><i data-lucide="chevron-up"></i></button>
                     <button class="widget-control-btn move-down-btn" title="Move Down"><i data-lucide="chevron-down"></i></button>
@@ -260,24 +263,37 @@ class TelemetryForge {
             minHeight: { type: 'number' }
         };
 
-        this.inspector.innerHTML = `
-            <div class="inspector-group">
-                <label class="inspector-label">TITLE</label>
-                <input type="text" class="inspector-input" data-prop="title" value="${widgetData.settings.title || ''}">
-            </div>
-            ${Object.entries(commonProps).map(([prop, cfg]) => `
-                <div class="inspector-group">
-                    <label class="inspector-label">${prop.toUpperCase()}</label>
-                    ${this.renderInspectorInput(prop, cfg, widgetData.settings[prop] || (prop === 'gridSpan' ? 1 : 180))}
-                </div>
-            `).join('')}
-            ${Object.entries(config.propertyConfig || {}).map(([prop, cfg]) => `
-                <div class="inspector-group">
-                    <label class="inspector-label">${prop.toUpperCase()}</label>
-                    ${this.renderInspectorInput(prop, cfg, widgetData.settings[prop])}
-                </div>
-            `).join('')}
-        `;
+        const properties = { ...commonProps, ...config.propertyConfig };
+
+        // Group properties
+        const groups = {
+            IDENTIFICATION: ['title'],
+            LAYOUT: ['gridSpan', 'minHeight'],
+            VISUALS: ['color', 'glowIntensity', 'visualDensity'],
+            ANIMATION: ['speed', 'jitter'],
+            DATA: ['value', 'warningThreshold', 'criticalThreshold', 'units', 'precision', 'message'],
+            EFFECTS: ['scanlineEffect', 'glitchEffect', 'noiseEffect']
+        };
+
+        let html = '';
+        Object.entries(groups).forEach(([groupName, props]) => {
+            const groupProps = Object.entries(properties).filter(([p]) => props.includes(p));
+            if (props.includes('title')) groupProps.unshift(['title', { type: 'text' }]);
+
+            if (groupProps.length > 0) {
+                html += `<div class="inspector-section">
+                    <div class="section-title">${groupName}</div>
+                    ${groupProps.map(([prop, cfg]) => `
+                        <div class="inspector-group">
+                            <label class="inspector-label">${prop.toUpperCase()}</label>
+                            ${this.renderInspectorInput(prop, cfg, widgetData.settings[prop] || (prop === 'gridSpan' ? 1 : (prop === 'minHeight' ? 180 : '')))}
+                        </div>
+                    `).join('')}
+                </div>`;
+            }
+        });
+
+        this.inspector.innerHTML = html;
 
         this.inspector.querySelectorAll('.inspector-input').forEach(input => {
             input.oninput = (e) => {
