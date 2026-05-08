@@ -7,7 +7,10 @@ import React, { useEffect, useState } from 'react';
 const CircularGauge = ({
   title = "CORE STABILITY",
   color = "currentColor",
-  speed = 1
+  speed = 1,
+  showRadarLine = true,
+  ringCount = 3,
+  showPercentage = true
 }) => {
   const [value, setValue] = useState(0);
   const [rotation, setRotation] = useState(0);
@@ -38,23 +41,33 @@ const CircularGauge = ({
       <div className="flex-1 relative flex items-center justify-center">
         <svg viewBox="0 0 100 100" className="w-full h-full max-w-[120px]">
           {/* Background circles */}
-          <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="0.5" opacity="0.1" />
-          <circle cx="50" cy="50" r="35" fill="none" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
-          <circle cx="50" cy="50" r="25" fill="none" stroke="currentColor" strokeWidth="0.5" opacity="0.1" />
+          {Array.from({ length: ringCount }).map((_, i) => (
+            <circle
+              key={i}
+              cx="50" cy="50"
+              r={45 - (i * (40 / ringCount))}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="0.5"
+              opacity={0.1 + (i * 0.05)}
+            />
+          ))}
 
           {/* Crosshair */}
           <line x1="50" y1="5" x2="50" y2="95" stroke="currentColor" strokeWidth="0.2" opacity="0.2" />
           <line x1="5" y1="50" x2="95" y2="50" stroke="currentColor" strokeWidth="0.2" opacity="0.2" />
 
           {/* Rotating radar line */}
-          <line
-            x1="50" y1="50"
-            x2="50" y2="10"
-            stroke="currentColor"
-            strokeWidth="1"
-            transform={`rotate(${rotation} 50 50)`}
-            className="drop-shadow-[0_0_2px_rgba(currentColor)]"
-          />
+          {showRadarLine && (
+            <line
+              x1="50" y1="50"
+              x2="50" y2="10"
+              stroke="currentColor"
+              strokeWidth="1"
+              transform={`rotate(${rotation} 50 50)`}
+              className="svg-glow"
+            />
+          )}
 
           {/* Progress arc */}
           <circle
@@ -68,22 +81,23 @@ const CircularGauge = ({
             style={{
               strokeDashoffset,
               transition: 'stroke-dashoffset 0.3s ease',
-              filter: 'drop-shadow(0 0 3px currentColor)'
             }}
             transform="rotate(-90 50 50)"
-            opacity="0.8"
+            className="svg-glow opacity-80"
           />
 
           {/* Center text */}
-          <text
-            x="50" y="55"
-            textAnchor="middle"
-            fill="currentColor"
-            fontSize="12"
-            className="font-bold glow-text"
-          >
-            {Math.round(value)}%
-          </text>
+          {showPercentage && (
+            <text
+              x="50" y="55"
+              textAnchor="middle"
+              fill="currentColor"
+              fontSize="12"
+              className="font-bold glow-text"
+            >
+              {Math.round(value)}%
+            </text>
+          )}
         </svg>
 
         {/* Decorative corner brackets */}
@@ -94,8 +108,8 @@ const CircularGauge = ({
       </div>
 
       <div className="mt-1 flex justify-between text-[8px] opacity-70">
-        <span>STABLE: {value > 20 ? 'YES' : 'WARN'}</span>
-        <span>RADAR_V3</span>
+        <span>RINGS: {ringCount}</span>
+        <span>RADAR: {showRadarLine ? 'ON' : 'OFF'}</span>
       </div>
     </div>
   );

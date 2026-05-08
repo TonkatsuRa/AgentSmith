@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { X, Copy, Check, Code } from 'lucide-react';
 import { generateStandaloneCode } from '../utils/exportGenerator';
 
-const ExportModal = ({ layout, widgetTypes, onClose }) => {
+const ExportModal = ({ layout, widgetTypes, effects, onClose }) => {
   const [copied, setCopied] = useState(false);
-  const code = generateStandaloneCode(layout, widgetTypes);
+  const code = generateStandaloneCode(layout, widgetTypes, effects);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(code);
@@ -27,11 +27,11 @@ const ExportModal = ({ layout, widgetTypes, onClose }) => {
         <div className="flex-1 overflow-hidden flex flex-col p-4 gap-4">
           <p className="text-xs opacity-70 uppercase">
             Copy the code below to implement this dashboard in any HTML5 project.
-            Includes CSS grid layout and CRT effects.
+            Includes CSS grid layout, CRT effects, and animated JS logic.
           </p>
 
-          <div className="flex-1 relative bg-black border border-terminal-border overflow-auto font-mono text-[10px] p-4 text-terminal-green/80">
-            <pre>{code}</pre>
+          <div className="flex-1 relative bg-black border border-terminal-border overflow-auto font-mono text-[10px] p-4 text-terminal-green/80 custom-scrollbar">
+            <pre className="whitespace-pre-wrap">{code}</pre>
             <button
               onClick={copyToClipboard}
               className="absolute top-2 right-2 flex items-center gap-2 px-3 py-1 bg-terminal-cyan text-black text-xs font-bold hover:bg-white transition-colors"

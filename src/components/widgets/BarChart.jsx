@@ -8,18 +8,35 @@ const BarChart = ({
   title = "SIGNAL FREQ",
   color = "currentColor",
   speed = 1,
-  barCount = 12
+  barCount = 12,
+  segmentCount = 10,
+  showPeaks = true
 }) => {
   const [bars, setBars] = useState([]);
+  const [peaks, setPeaks] = useState([]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const newBars = Array.from({ length: barCount }, () => Math.random() * 80 + 10);
-      setBars(newBars);
+      setBars(prevBars => {
+        const newBars = Array.from({ length: barCount }, () => Math.random() * 80 + 10);
+
+        if (showPeaks) {
+          setPeaks(prevPeaks => {
+            const newPeaks = [...prevPeaks];
+            if (newPeaks.length !== barCount) return newBars.map(h => h);
+            return newPeaks.map((p, i) => {
+              if (newBars[i] > p) return newBars[i];
+              return p - 0.5; // Slowly drop peaks
+            });
+          });
+        }
+
+        return newBars;
+      });
     }, 100 / speed);
 
     return () => clearInterval(interval);
-  }, [speed, barCount]);
+  }, [speed, barCount, showPeaks]);
 
   return (
     <div className="w-full h-full flex flex-col p-2 bg-terminal-panel border border-terminal-border rounded-sm overflow-hidden" style={{ color }}>
@@ -31,20 +48,29 @@ const BarChart = ({
         </span>
       </div>
 
-      <div className="flex-1 flex items-end gap-1 px-1">
+      <div className="flex-1 flex items-end gap-1 px-1 relative">
         {bars.map((height, i) => (
           <div key={i} className="flex-1 flex flex-col justify-end items-center h-full gap-0.5">
-            {/* Segments for a more retro look */}
-            {Array.from({ length: 10 }).map((_, segmentIndex) => {
-              const segmentThreshold = (10 - segmentIndex) * 10;
+            {/* Peaks */}
+            {showPeaks && peaks[i] > 0 && (
+              <div
+                className="w-full h-[1px] bg-current opacity-60 absolute transition-all duration-300"
+                style={{ bottom: `${peaks[i]}%`, left: `${(i / barCount) * 100}%`, width: `${100 / barCount - 2}%` }}
+              />
+            )}
+
+            {/* Segments */}
+            {Array.from({ length: segmentCount }).map((_, segmentIndex) => {
+              const segmentThreshold = (segmentCount - segmentIndex) * (100 / segmentCount);
               const isActive = height >= segmentThreshold;
               return (
                 <div
                   key={segmentIndex}
-                  className={`w-full h-1 transition-all duration-75 ${
+                  className={`w-full transition-all duration-75 ${
                     isActive ? 'bg-current opacity-80' : 'bg-current opacity-5'
                   }`}
                   style={{
+                    height: `${100 / (segmentCount * 2)}%`,
                     boxShadow: isActive ? '0 0 4px currentColor' : 'none'
                   }}
                 />
@@ -54,9 +80,9 @@ const BarChart = ({
         ))}
       </div>
 
-      <div className="mt-1 grid grid-cols-2 text-[8px] opacity-70">
-        <div className="border-r border-terminal-border/30 pr-1 text-left">CH_01: {Math.round(bars[0] || 0)}db</div>
-        <div className="pl-1 text-right">PEAK: {Math.max(...bars, 0).toFixed(1)}</div>
+      <div className="mt-1 flex justify-between text-[8px] opacity-70">
+        <span>S_COUNT: {segmentCount}</span>
+        <span>PEAK: {Math.max(...bars, 0).toFixed(1)}</span>
       </div>
     </div>
   );

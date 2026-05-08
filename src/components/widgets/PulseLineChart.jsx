@@ -9,7 +9,10 @@ const PulseLineChart = ({
   title = "HEARTBEAT MON",
   color = "currentColor",
   speed = 1,
-  dataPoints = 50
+  dataPoints = 50,
+  amplitude = 10,
+  strokeWidth = 1.5,
+  glitchFrequency = 0.05
 }) => {
   const [points, setPoints] = useState([]);
   const requestRef = useRef();
@@ -39,9 +42,11 @@ const PulseLineChart = ({
       const t = countRef.current;
       const base = 50;
       // Main pulse
-      let pulse = Math.sin(t) * 10;
-      // Add some erratic spikes
-      if (Math.random() > 0.95) pulse += (Math.random() - 0.5) * 40;
+      let pulse = Math.sin(t) * amplitude;
+      // Add some erratic spikes (glitch)
+      if (Math.random() > (1 - glitchFrequency)) {
+        pulse += (Math.random() - 0.5) * 60;
+      }
 
       newPoints[newPoints.length - 1].y = base + pulse;
       return newPoints;
@@ -53,7 +58,7 @@ const PulseLineChart = ({
   useEffect(() => {
     requestRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(requestRef.current);
-  }, [speed]);
+  }, [speed, amplitude, glitchFrequency]);
 
   const pathData = points.length > 0
     ? `M ${points.map(p => `${p.x},${p.y}`).join(' L ')}`
@@ -87,8 +92,8 @@ const PulseLineChart = ({
             d={pathData}
             fill="none"
             stroke="currentColor"
-            strokeWidth="1.5"
-            className="drop-shadow-[0_0_3px_rgba(currentColor)]"
+            strokeWidth={strokeWidth}
+            className="svg-glow"
           />
 
           {/* Gradient fill under the path */}
@@ -98,23 +103,13 @@ const PulseLineChart = ({
             fillOpacity="0.05"
           />
         </svg>
-
-        {/* Scanning line overlay effect */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-current to-transparent w-1 h-full opacity-10 animate-[move-x_4s_linear_infinite]" />
       </div>
 
       <div className="mt-1 flex justify-between text-[8px] opacity-70">
-        <span>00:00:00</span>
-        <span>LIVE_DATA</span>
-        <span>V_OS_4.2</span>
+        <span>RATE: {speed.toFixed(1)}x</span>
+        <span>AMP: {amplitude.toFixed(0)}</span>
+        <span>{glitchFrequency > 0.1 ? 'GLITCH_HIGH' : 'STABLE'}</span>
       </div>
-
-      <style jsx>{`
-        @keyframes move-x {
-          0% { left: -10%; }
-          100% { left: 110%; }
-        }
-      `}</style>
     </div>
   );
 };
