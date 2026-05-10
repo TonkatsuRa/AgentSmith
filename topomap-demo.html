@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>METAPLANAR TOPOGRAPHY SCAN - Standalone Prototype</title>
+    <style>
+        :root {
+            --terminal-green: #14fdce;
+            --terminal-green-dim: rgba(20, 253, 206, 0.2);
+            --terminal-bg: #050a05;
+            --amber: #ffb000;
+            --cyan: #00d4ff;
+            --red: #ff3333;
+            --white: #ffffff;
+            --font-mono: 'Fira Code', 'Courier New', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #000;
+            color: var(--terminal-green);
+            font-family: var(--font-mono);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* CRT effects */
+        .crt-container {
+            position: relative;
+            width: 900px;
+            height: 600px;
+            background-color: var(--terminal-bg);
+            border: 2px solid var(--terminal-green-dim);
+            box-shadow: 0 0 20px rgba(20, 253, 206, 0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .crt-container::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 10;
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+        }
+
+        .crt-container::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: rgba(18, 16, 16, 0.1);
+            opacity: 0;
+            z-index: 10;
+            pointer-events: none;
+            animation: flicker 0.15s infinite;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.1; }
+            100% { opacity: 0.05; }
+        }
+
+        .vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.5);
+            pointer-events: none;
+            z-index: 11;
+        }
+
+        /* Panel Layout */
+        .terminal-header {
+            padding: 10px 15px;
+            border-bottom: 1px solid var(--terminal-green-dim);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(20, 253, 206, 0.05);
+        }
+
+        .title {
+            font-weight: bold;
+            letter-spacing: 2px;
+            font-size: 1.1rem;
+        }
+
+        .status-text {
+            font-size: 0.8rem;
+            opacity: 0.8;
+        }
+
+        .map-canvas-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .terminal-footer {
+            padding: 10px 15px;
+            border-top: 1px solid var(--terminal-green-dim);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            font-size: 0.7rem;
+            background: rgba(20, 253, 206, 0.05);
+        }
+
+        .controls-hint {
+            opacity: 0.7;
+        }
+
+        .legend {
+            display: grid;
+            grid-template-columns: auto auto;
+            gap: 5px 15px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .legend-color {
+            width: 10px;
+            height: 10px;
+            margin-right: 8px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .color-amber { background-color: var(--amber); }
+        .color-cyan { background-color: var(--cyan); }
+        .color-red { background-color: var(--red); }
+        .color-white { background-color: var(--white); }
+        .color-pulse {
+            background-color: #ff00ff;
+            animation: pulse-dot 1s infinite alternate;
+        }
+
+        @keyframes pulse-dot {
+            from { opacity: 0.3; }
+            to { opacity: 1; transform: scale(1.2); }
+        }
+
+        /* Label overlay */
+        #label-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .pin-label {
+            position: absolute;
+            padding: 2px 4px;
+            background: rgba(0,0,0,0.7);
+            border: 1px solid var(--terminal-green-dim);
+            font-size: 10px;
+            color: var(--terminal-green);
+            white-space: nowrap;
+            transform: translate(-50%, -100%);
+            margin-top: -10px;
+        }
+
+        /* Signal twitch effect */
+        .twitch {
+            animation: twitch-anim 0.2s steps(1) infinite;
+        }
+
+        @keyframes twitch-anim {
+            0% { transform: translate(0,0); }
+            10% { transform: translate(2px, 0); }
+            20% { transform: translate(-2px, 0); }
+            30% { transform: translate(0, 1px); }
+            40% { transform: translate(0,0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="crt-container" id="terminal">
+        <div class="vignette"></div>
+        <header class="terminal-header">
+            <div class="title">METAPLANAR TOPOGRAPHY SCAN</div>
+            <div class="status-text">SECTOR C / BLACK DESERT / ARES INTERNAL</div>
+        </header>
+
+        <div class="map-canvas-container" id="canvas-wrapper">
+            <div id="label-container"></div>
+            <!-- Three.js canvas will be inserted here -->
+        </div>
+
+        <footer class="terminal-footer">
+            <div class="legend">
+                <div class="legend-item"><div class="legend-color color-amber"></div> <span>ZONE A / THE CORRIDOR</span></div>
+                <div class="legend-item"><div class="legend-color color-cyan"></div> <span>ZONE B / THE CLAIM</span></div>
+                <div class="legend-item"><div class="legend-color color-red"></div> <span>ZONE C / THE BLIND</span></div>
+                <div class="legend-item"><div class="legend-color color-white"></div> <span>SITE PIN</span></div>
+                <div class="legend-item"><div class="legend-color color-pulse"></div> <span>ANOMALOUS MANA ACTIVITY</span></div>
+            </div>
+            <div class="controls-hint">
+                DRAG: ROTATE | WHEEL: ZOOM | RMB: PAN
+            </div>
+        </footer>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.162.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+        // ============================================================
+        // CONFIGURATION & CONSTANTS
+        // ============================================================
+        const TERRAIN_SIZE = 100;
+        const TERRAIN_SEGMENTS = 200;
+        const HEIGHT_SCALE = 15;
+        const TERRAIN_SEED = 42.5;
+        const TERRAIN_DETAIL_STRENGTH = 0.5;
+
+        const CONTOUR_DENSITY = 2.5; // Adjusted for new shader logic
+        const LINE_THICKNESS = 0.15;
+        const PIXEL_SCALE = 4.0; // World-space quantization
+        const DISTORTION_STRENGTH = 0.05;
+        const JITTER_STRENGTH = 0.01;
+        const SCANLINE_STRENGTH = 0.25;
+        const GLOW_STRENGTH = 1.5;
+
+        const BLOOM_ENABLED = false;
+        const LOW_POWER_MODE = false;
+        const SHOW_ZONE_OVERLAY = true;
+        const ZONE_PULSE_STRENGTH = 0.1;
+        const ZONE_NOISE_STRENGTH = 0.05;
+        const SHOW_TELEMETRY_PINS = true;
+        const PIN_LABELS_ENABLED = true;
+
+        // THEME SELECTION: Set to 'ARES_GREEN' or 'CYAN_BLUE'
+        const THEME_TYPE = 'ARES_GREEN';
+
+        const THEMES = {
+            ARES_GREEN: {
+                background: 0x050a05,
+                terrainBase: 0x000800,
+                contour: 0x14fdce,
+                grid: 0x0a220a,
+                text: '#14fdce'
+            },
+            CYAN_BLUE: {
+                background: 0x00050a,
+                terrainBase: 0x000008,
+                contour: 0x00d4ff,
+                grid: 0x0a1a2a,
+                text: '#00d4ff'
+            }
+        };
+
+        const COLOR_THEME = THEMES[THEME_TYPE] || THEMES.ARES_GREEN;
+
+        const ZONES = [
+            {
+                id: 'zone_a',
+                label: 'ZONE A: THE CORRIDOR',
+                color: '#ffb000',
+                opacity: 0.22,
+                pulse: 0.08,
+                points: [[-45, -18], [-18, -28], [8, -16], [18, 0], [-20, 8], [-48, 4]]
+            },
+            {
+                id: 'zone_b',
+                label: 'ZONE B: THE CLAIM',
+                color: '#00d4ff',
+                opacity: 0.22,
+                pulse: 0.06,
+                points: [[-12, 4], [20, -4], [46, 8], [38, 32], [8, 38], [-20, 24]]
+            },
+            {
+                id: 'zone_c',
+                label: 'ZONE C: THE BLIND',
+                color: '#ff3333',
+                opacity: 0.25,
+                pulse: 0.12,
+                points: [[8, -42], [44, -36], [52, -8], [32, 12], [8, 0], [-4, -22]]
+            }
+        ];
+
+        const TELEMETRY_PINS = [
+            { id: 'bre01', label: 'BRE-01 GATEHEAD', x: -36, z: -10, height: 18, color: '#ffb000' },
+            { id: 'bre02', label: 'BRE-02 RED HARVEST', x: -12, z: 8, height: 16, color: '#00d4ff' },
+            { id: 'bre03', label: 'BRE-03 FIREWATCH', x: 14, z: -18, height: 20, color: '#ff3333' },
+            { id: 'bre06', label: 'BRE-06 THE STOCKADE', x: 32, z: 24, height: 17, color: '#ffffff' },
+            { id: 'mana', label: 'MANA SPIKE', x: 4, z: 30, height: 24, color: '#ff00ff' }
+        ];
+
+        // ============================================================
+        // CORE ENGINE
+        // ============================================================
+        let scene, camera, renderer, controls, clock, composer;
+        let terrainMesh, gridBase, dataSweep;
+        let zoneMeshes = [];
+        let pinObjects = [];
+        let labelElements = [];
+
+        function init() {
+            clock = new THREE.Clock();
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(COLOR_THEME.background);
+            scene.fog = new THREE.FogExp2(COLOR_THEME.background, 0.005);
+
+            const container = document.getElementById('canvas-wrapper');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            camera = new THREE.PerspectiveCamera(45, width / height, 1, 1000);
+            camera.position.set(70, 70, 70);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: !LOW_POWER_MODE, alpha: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(LOW_POWER_MODE ? 1.0 : Math.min(window.devicePixelRatio, 1.5));
+            container.appendChild(renderer.domElement);
+
+            if (BLOOM_ENABLED) {
+                const renderScene = new RenderPass(scene, camera);
+                const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 1.5, 0.4, 0.85);
+                bloomPass.threshold = 0.2;
+                bloomPass.strength = 1.2;
+                bloomPass.radius = 0.5;
+
+                const outputPass = new OutputPass();
+
+                composer = new EffectComposer(renderer);
+                composer.addPass(renderScene);
+                composer.addPass(bloomPass);
+                composer.addPass(outputPass);
+            }
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.08;
+            controls.minPolarAngle = Math.PI * 0.18;
+            controls.maxPolarAngle = Math.PI * 0.48;
+            controls.minDistance = 20;
+            controls.maxDistance = 200;
+
+            window.addEventListener('resize', onWindowResize);
+
+            createGridBase();
+            createTerrain();
+            if (SHOW_ZONE_OVERLAY) createZones();
+            if (SHOW_TELEMETRY_PINS) createPins();
+            createDataSweep();
+
+            animate();
+        }
+
+        function createDataSweep() {
+            const geometry = new THREE.PlaneGeometry(TERRAIN_SIZE * 1.2, 1);
+            const material = new THREE.MeshBasicMaterial({
+                color: COLOR_THEME.contour,
+                transparent: true,
+                opacity: 0.1,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending
+            });
+            dataSweep = new THREE.Mesh(geometry, material);
+            dataSweep.rotateX(-Math.PI / 2);
+            scene.add(dataSweep);
+        }
+
+        function createGridBase() {
+            const grid = new THREE.GridHelper(TERRAIN_SIZE * 1.5, 40, COLOR_THEME.grid, COLOR_THEME.grid);
+            grid.position.y = -2;
+            grid.material.opacity = 0.2;
+            grid.material.transparent = true;
+            scene.add(grid);
+            gridBase = grid;
+        }
+
+        // ============================================================
+        // TERRAIN GENERATION
+        // ============================================================
+
+        /**
+         * Simple noise-like function using layered sines
+         * Replaces heavy noise libraries for standalone use
+         */
+        function getTerrainHeight(x, z) {
+            // Base scale
+            const xf = x * 0.05;
+            const zf = z * 0.05;
+
+            // Layered sine waves for "natural" look
+            let height = Math.sin(xf) * Math.cos(zf);
+            height += Math.sin(xf * 2.1 + TERRAIN_SEED) * Math.cos(zf * 1.9) * 0.5;
+            height += Math.sin(xf * 4.4) * Math.cos(zf * 4.1) * 0.25;
+
+            // Add a "ridge" effect
+            const ridge = Math.abs(Math.sin(xf * 0.5 + zf * 0.5));
+            height += ridge * 0.4;
+
+            // Apply scale and detail
+            return height * HEIGHT_SCALE * TERRAIN_DETAIL_STRENGTH;
+        }
+
+        function createTerrain() {
+            const geometry = new THREE.PlaneGeometry(
+                TERRAIN_SIZE,
+                TERRAIN_SIZE,
+                TERRAIN_SEGMENTS,
+                TERRAIN_SEGMENTS
+            );
+
+            // Tilt geometry to be flat on XZ plane
+            geometry.rotateX(-Math.PI / 2);
+
+            // Displace vertices on CPU for accurate collision/positioning
+            const positions = geometry.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                const x = positions[i];
+                const z = positions[i+2];
+                positions[i+1] = getTerrainHeight(x, z);
+            }
+
+            geometry.computeVertexNormals();
+
+            // Material will be implemented in the next step (Contour Shader)
+            const material = createContourMaterial();
+
+            terrainMesh = new THREE.Mesh(geometry, material);
+            scene.add(terrainMesh);
+        }
+
+        function createContourMaterial() {
+            const uniforms = {
+                uTime: { value: 0 },
+                uContourDensity: { value: CONTOUR_DENSITY },
+                uLineThickness: { value: LINE_THICKNESS },
+                uPixelScale: { value: PIXEL_SCALE },
+                uDistortionStrength: { value: DISTORTION_STRENGTH },
+                uJitterStrength: { value: JITTER_STRENGTH },
+                uScanlineStrength: { value: SCANLINE_STRENGTH },
+                uGlowStrength: { value: GLOW_STRENGTH },
+                uBaseColor: { value: new THREE.Color(COLOR_THEME.terrainBase) },
+                uLineColor: { value: new THREE.Color(COLOR_THEME.contour) }
+            };
+
+            const vertexShader = `
+                varying vec3 vWorldPos;
+                varying vec2 vUv;
+
+                void main() {
+                    vUv = uv;
+                    vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `;
+
+            const fragmentShader = `
+                uniform float uTime;
+                uniform float uContourDensity;
+                uniform float uLineThickness;
+                uniform float uPixelScale;
+                uniform float uDistortionStrength;
+                uniform float uJitterStrength;
+                uniform float uScanlineStrength;
+                uniform float uGlowStrength;
+                uniform vec3 uBaseColor;
+                uniform vec3 uLineColor;
+
+                varying vec3 vWorldPos;
+                varying vec2 vUv;
+
+                float hash(vec2 p) {
+                    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+                }
+
+                void main() {
+                    // 1. World-space quantization for rasterized look
+                    vec3 pixelatedPos = floor(vWorldPos * uPixelScale) / uPixelScale;
+
+                    // 2. Jitter and distortion (calculated on quantized grid)
+                    float noise = hash(pixelatedPos.xz + floor(uTime * 8.0) * 0.1);
+                    float distortion = sin(pixelatedPos.x * 0.4 + uTime) * uDistortionStrength;
+
+                    // Apply to height for contour calculation
+                    float h = (pixelatedPos.y + distortion + (noise - 0.5) * uJitterStrength) * uContourDensity;
+
+                    // 3. Rasterized contour lines (no smoothstep/fwidth for blocky edges)
+                    float lineVal = fract(h);
+                    float contour = (lineVal < uLineThickness) ? 1.0 : 0.0;
+
+                    // 4. Broken segments / digital noise
+                    float segmentNoise = hash(floor(pixelatedPos.xz * 1.2) + floor(uTime * 3.0));
+                    if (segmentNoise < 0.12) contour = 0.0;
+
+                    // 5. Scanlines
+                    float scanline = sin(gl_FragCoord.y * 0.7) * 0.5 + 0.5;
+                    float scanlineEffect = mix(1.0, scanline, uScanlineStrength);
+
+                    // 6. Color
+                    vec3 finalColor = mix(uBaseColor, uLineColor, contour * uGlowStrength);
+                    finalColor *= scanlineEffect;
+                    finalColor *= (1.0 + sin(uTime * 15.0) * 0.03); // Flicker
+
+                    gl_FragColor = vec4(finalColor, 0.85);
+                }
+            `;
+
+            return new THREE.ShaderMaterial({
+                uniforms,
+                vertexShader,
+                fragmentShader,
+                transparent: true,
+                side: THREE.DoubleSide
+            });
+        }
+
+        function createZones() {
+            ZONES.forEach(zone => {
+                const mesh = createZoneMesh(zone);
+                if (mesh) {
+                    scene.add(mesh);
+                    zoneMeshes.push({
+                        mesh: mesh,
+                        config: zone
+                    });
+                }
+            });
+        }
+
+        function isPointInPoly(poly, pt) {
+            for (var c = false, i = -1, l = poly.length, j = l - 1; ++i < l; j = i)
+                ((poly[i][1] <= pt[1] && pt[1] < poly[j][1]) || (poly[j][1] <= pt[1] && pt[1] < poly[i][1]))
+                && (pt[0] < (poly[j][0] - poly[i][0]) * (pt[1] - poly[i][1]) / (poly[j][1] - poly[i][1]) + poly[i][0])
+                && (c = !c);
+            return c;
+        }
+
+        function createZoneMesh(zone) {
+            // Find bounding box of points
+            let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+            zone.points.forEach(p => {
+                minX = Math.min(minX, p[0]);
+                maxX = Math.max(maxX, p[0]);
+                minZ = Math.min(minZ, p[1]);
+                maxZ = Math.max(maxZ, p[1]);
+            });
+
+            const width = maxX - minX;
+            const depth = maxZ - minZ;
+            const segments = 25; // Subdivide to conform to terrain
+
+            const geometry = new THREE.PlaneGeometry(width, depth, segments, segments);
+            geometry.rotateX(-Math.PI / 2);
+
+            const positions = geometry.attributes.position.array;
+            const inPolyAttrib = new Float32Array(positions.length / 3);
+
+            for (let i = 0; i < positions.length; i += 3) {
+                const x = positions[i] + (minX + maxX) / 2;
+                const z = positions[i+2] + (minZ + maxZ) / 2;
+                positions[i] = x;
+                positions[i+2] = z;
+                positions[i+1] = getTerrainHeight(x, z) + 0.3;
+                inPolyAttrib[i/3] = isPointInPoly(zone.points, [x, z]) ? 1.0 : 0.0;
+            }
+            geometry.setAttribute('aInPoly', new THREE.BufferAttribute(inPolyAttrib, 1));
+
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    uColor: { value: new THREE.Color(zone.color) },
+                    uOpacity: { value: zone.opacity },
+                    uTime: { value: 0 },
+                    uPulse: { value: zone.pulse }
+                },
+                vertexShader: `
+                    varying float vInPoly;
+                    attribute float aInPoly;
+                    varying vec3 vWorldPos;
+                    void main() {
+                        vInPoly = aInPoly;
+                        vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 uColor;
+                    uniform float uOpacity;
+                    uniform float uTime;
+                    uniform float uPulse;
+                    varying float vInPoly;
+                    varying vec3 vWorldPos;
+
+                    float hash(vec2 p) {
+                        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+                    }
+
+                    void main() {
+                        if (vInPoly < 0.5) discard;
+
+                        float pulse = 1.0 + sin(uTime * 2.0) * uPulse;
+                        float noise = hash(vWorldPos.xz + floor(uTime * 10.0) * 0.1) * 0.1;
+
+                        gl_FragColor = vec4(uColor, uOpacity * pulse * (0.9 + noise));
+                    }
+                `,
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+
+            return new THREE.Mesh(geometry, material);
+        }
+
+        function createPins() {
+            const labelContainer = document.getElementById('label-container');
+
+            TELEMETRY_PINS.forEach(pin => {
+                // 1. Create 3D Pin
+                const terrainY = getTerrainHeight(pin.x, pin.z);
+                const pinHeight = pin.height || 15;
+
+                // Vertical Line
+                const points = [
+                    new THREE.Vector3(pin.x, terrainY, pin.z),
+                    new THREE.Vector3(pin.x, terrainY + pinHeight, pin.z)
+                ];
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const material = new THREE.LineBasicMaterial({
+                    color: pin.color,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const line = new THREE.Line(geometry, material);
+                scene.add(line);
+
+                // Top Dot
+                const dotGeo = new THREE.SphereGeometry(0.5, 8, 8);
+                const dotMat = new THREE.MeshBasicMaterial({ color: pin.color });
+                const dot = new THREE.Mesh(dotGeo, dotMat);
+                dot.position.set(pin.x, terrainY + pinHeight, pin.z);
+                scene.add(dot);
+
+                pinObjects.push({
+                    line: line,
+                    dot: dot,
+                    config: pin,
+                    topPos: new THREE.Vector3(pin.x, terrainY + pinHeight, pin.z)
+                });
+
+                // 2. Create HTML Label
+                if (PIN_LABELS_ENABLED) {
+                    const label = document.createElement('div');
+                    label.className = 'pin-label';
+                    label.textContent = pin.label;
+                    label.style.borderColor = pin.color;
+                    label.style.color = pin.color;
+                    labelContainer.appendChild(label);
+
+                    labelElements.push({
+                        element: label,
+                        pos: new THREE.Vector3(pin.x, terrainY + pinHeight, pin.z)
+                    });
+                }
+            });
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-wrapper');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+            if (composer) composer.setSize(width, height);
+        }
+
+        function animate() {
+            if (document.hidden) {
+                requestAnimationFrame(animate);
+                return;
+            }
+
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            // Update uniforms
+            if (terrainMesh && terrainMesh.material.uniforms) {
+                terrainMesh.material.uniforms.uTime.value = time;
+            }
+
+            // Update Data Sweep
+            if (dataSweep) {
+                dataSweep.position.z = Math.sin(time * 0.5) * (TERRAIN_SIZE / 2);
+                dataSweep.material.opacity = 0.05 + Math.abs(Math.sin(time * 5.0)) * 0.05;
+            }
+
+            // Signal Twitch (rare)
+            if (Math.random() > 0.995) {
+                const terminal = document.getElementById('terminal');
+                terminal.classList.add('twitch');
+                setTimeout(() => terminal.classList.remove('twitch'), 150);
+            }
+
+            // Update zone pulses
+            zoneMeshes.forEach(zm => {
+                if (zm.mesh.material.uniforms) {
+                    zm.mesh.material.uniforms.uTime.value = time;
+                }
+            });
+
+            controls.update();
+
+            if (composer && BLOOM_ENABLED) {
+                composer.render();
+            } else {
+                renderer.render(scene, camera);
+            }
+
+            // Sync labels if any
+            updateLabels();
+        }
+
+        function dispose() {
+            scene.traverse(object => {
+                if (object.geometry) object.geometry.dispose();
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(m => m.dispose());
+                    } else {
+                        object.material.dispose();
+                    }
+                }
+            });
+            renderer.dispose();
+            labelElements.forEach(item => item.element.remove());
+            labelElements = [];
+        }
+
+        function updateLabels() {
+            if (!PIN_LABELS_ENABLED) return;
+
+            const container = document.getElementById('canvas-wrapper');
+            const widthHalf = container.clientWidth / 2;
+            const heightHalf = container.clientHeight / 2;
+
+            const tempVec = new THREE.Vector3();
+
+            labelElements.forEach(item => {
+                tempVec.copy(item.pos);
+                tempVec.project(camera);
+
+                // Check if the pin is in front of the camera
+                if (tempVec.z > 1) {
+                    item.element.style.display = 'none';
+                    return;
+                }
+
+                const x = (tempVec.x * widthHalf) + widthHalf;
+                const y = -(tempVec.y * heightHalf) + heightHalf;
+
+                item.element.style.display = 'block';
+                item.element.style.left = `${x}px`;
+                item.element.style.top = `${y}px`;
+
+                // Scale label based on distance (subtle)
+                const dist = camera.position.distanceTo(item.pos);
+                const scale = Math.max(0.7, 1.2 - (dist / 150));
+                item.element.style.transform = `translate(-50%, -100%) scale(${scale})`;
+            });
+        }
+
+        // Start!
+        init();
+    </script>
+</body>
+</html>
